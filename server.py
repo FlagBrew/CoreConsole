@@ -7,7 +7,7 @@ import uuid
 import sys
 from datetime import datetime
 import base64
-from flask import Flask, url_for, request, jsonify, send_file
+from flask import Flask, url_for, request, jsonify, send_file, Response
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
@@ -42,15 +42,17 @@ def api_legalize():
             if os.name == 'nt':
                 proc = subprocess.Popen(['CoreConsole.exe', '-alm', '--version', request.headers.get('Version'), '-i', inputPath, '-o', inputPath], stdout=subprocess.PIPE, shell=True)
             else:
-                proc = subprocess.Popen('mono CoreConsole.exe -alm --version {} -i "{}" -o "{}"'.format(request.headers.get('Version'), inputPath, inputPath), stdout=subprocess.PIPE, shell=True)
-            (out, err) = proc.communicate()
+                proc = subprocess.Popen('mono CoreConsole.exe -alm --version {} -i "{}" -o "{}"'.format(request.headers.get('Version'), inputPath, inputPath), stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+            out, err = proc.communicate()
+            if err:
+                return Response("Error", status=400, mimetype='text/plain')
             fname = str(uniqint) + '.pkx'
             with open(inputPath, 'rb') as f:
                 pkx = f.read()
             return send_file(io.BytesIO(pkx), attachment_filename=fname)
     except Exception as e:
         print(e)
-        return None
+        return None, 400
 
 if __name__ == '__main__':
     ensureFolderExists(DIR_OUTPUT)

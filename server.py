@@ -6,6 +6,7 @@ import io
 import uuid
 import sys
 from datetime import datetime
+import base64
 from flask import Flask, url_for, request, jsonify, send_file
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -28,16 +29,16 @@ def hello():
 @app.route('/api/legalize', methods = ['POST'])
 def api_legalize():
     try:
-        if request.headers['Content-Type'] == 'application/octet-stream':
-            if not request.data or not request.headers.get('Version'):
-                print("shit")
+        if request.headers['Content-Type'] == 'application/base64':
+            if not request.data or not request.headers.get('Version') or not request.headers.get("Size"):
+                print("Invalid request made!")
                 return None
             storeFolder = os.path.join(DIR_OUTPUT, datePath())
             ensureFolderExists(storeFolder)
             uniqint = uuid.uuid4()
             inputPath = os.path.join(storeFolder, str(uniqint) + ".pkx")
             with open(inputPath, 'wb') as f:
-                f.write(request.data)
+                f.write(base64.b64decode(request.data)[:int(request.headers['Size'])])
             if os.name == 'nt':
                 proc = subprocess.Popen(['CoreConsole.exe', '-alm', '--version', request.headers.get('Version'), '-i', inputPath, '-o', inputPath], stdout=subprocess.PIPE, shell=True)
             else:
@@ -53,4 +54,4 @@ def api_legalize():
 
 if __name__ == '__main__':
     ensureFolderExists(DIR_OUTPUT)
-    app.run(host='0.0.0.0', port=5000)
+    app.run(host='0.0.0.0', port=4001)

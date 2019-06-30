@@ -102,7 +102,7 @@ public class Server
     String type = "";
     public void Server_start(int port, string server_type, bool wait_loop)
     {
-        server = new TcpListener(IPAddress.Loopback, port);
+        server = new TcpListener(IPAddress.Any, port);
         type = server_type;
         server.Start();
         Accept_connection();  //accepts incoming connections
@@ -159,6 +159,24 @@ public class Server
                     data += pk.Nature.ToString() + "," + pk.IV_HP.ToString() + "," + pk.IV_ATK.ToString() + "," + pk.IV_DEF.ToString() + "," + pk.IV_SPA.ToString() + "," + pk.IV_SPD + "," + pk.IV_SPE
                     + "," + pk.Gender.ToString() + "," + pk.IsShiny.ToString() + "," + pk.Ability.ToString() + "," + pk.HeldItem.ToString() + "," + pk.TID.ToString() + "," + pk.Ball.ToString()
                     + "," + pk.PKRS_Infected.ToString();
+                    data += "," + pk.SIZE_STORED.ToString();
+                    if(pk.GetType() == typeof(PK4))
+                    {
+                        data += ",4";
+                    } else if (pk.GetType() == typeof(PK5))
+                    {
+                        data += ",5";
+
+                    } else if(pk.GetType() == typeof(PK6))
+                    {
+                        data += ",6";
+                    } else if(pk.GetType() == typeof(PK7))
+                    {
+                        data += ",7";
+                    } else if (pk.GetType() == typeof(PB7))
+                    {
+                        data += ",LGPE";
+                    }
                     byte[] info = Encoding.UTF8.GetBytes(data);
                     ns.Write(info, 0, info.Length);
                     ns.Flush();

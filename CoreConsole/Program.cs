@@ -20,8 +20,10 @@ namespace CoreConsole
          
            if (args.Contains("-server"))
             {
-                var server = new Server();
-                server.Server_start();
+                var server1 = new Server();
+                server1.Server_start(7272, "legality_check", false);
+                var server2 = new Server();
+                server2.Server_start(7273, "info_get", true);
             }
             else
             {
@@ -96,32 +98,38 @@ namespace CoreConsole
 
 public class Server
 {
-    readonly TcpListener server = new TcpListener(IPAddress.Loopback, 7272);
-    public void Server_start()
+    TcpListener server;
+    String type = "";
+    public void Server_start(int port, string server_type, bool wait_loop)
     {
+        server = new TcpListener(IPAddress.Loopback, port);
+        type = server_type;
         server.Start();
-        Accept_connection();
-        Console.WriteLine("Started Server!");
-        while (true)
+        Accept_connection();  //accepts incoming connections
+        Console.WriteLine("Started " + type + " Server!");
+        if (wait_loop)
         {
-            Thread.Sleep(5000);
+            while (true)
+            {
+                Thread.Sleep(5000);
+            }
         }
     }
 
 
     private void Accept_connection()
     {
-        server.BeginAcceptTcpClient(Handle_connection, server);
+        server.BeginAcceptTcpClient(Handle_connection, server);  //this is called asynchronously and will run in a different thread
     }
 
-    public void Handle_connection(IAsyncResult result)
+    public void Handle_connection(IAsyncResult result)  //the parameter is a delegate, used to communicate between threads
     {
-        Accept_connection();
-        TcpClient client = server.EndAcceptTcpClient(result);
+        Accept_connection();  //once again, checking for any other incoming connections
+        TcpClient client = server.EndAcceptTcpClient(result);  //creates the TcpClient
 
         NetworkStream ns = client.GetStream();
 
-        while (client.Connected)
+        while (client.Connected)  //while the client is connected, we look for incoming messages
         {
             byte[] size = new byte[8];
             ns.Read(size, 0, size.Length);
@@ -129,15 +137,32 @@ public class Server
 
             int.TryParse(dataSizeStr, out int dataSize);
 
-            byte[] msg = new byte[dataSize]; 
+            byte[] msg = new byte[dataSize];     //the messages arrive as byte array
             try
             {
-                ns.Read(msg, 0, msg.Length)
+                ns.Read(msg, 0, msg.Length);   //the same networkstream reads the message sent by the client
                 var pk = PKMConverter.GetPKMfromBytes(msg);
-                var lc = new LegalityCheck(pk);
-                byte[] report = Encoding.Default.GetBytes(lc.Report);
-                ns.Write(report, 0, report.Length);
-                ns.Flush();
+                if(type == "legality_check")
+                {
+                    var lc = new LegalityCheck(pk);
+                    byte[] report = Encoding.Default.GetBytes(lc.Report);
+                    ns.Write(report, 0, report.Length);
+                    ns.Flush();
+                } else if (type == "info_get")
+                {
+                    string data = "";
+                    data += pk.Nickname.ToString() + "," + pk.OT_Name.ToString() + "," + pk.CurrentLevel.ToString() + "," + pk.Species.ToString() + ",";
+                    foreach (int move in pk.GetMoveSet())
+                    {
+                        data += move.ToString() + ",";
+                    }
+                    data += pk.Nature.ToString() + "," + pk.IV_HP.ToString() + "," + pk.IV_ATK.ToString() + "," + pk.IV_DEF.ToString() + "," + pk.IV_SPA.ToString() + "," + pk.IV_SPD + "," + pk.IV_SPE
+                    + "," + pk.Gender.ToString() + "," + pk.IsShiny.ToString() + "," + pk.Ability.ToString() + "," + pk.HeldItem.ToString() + "," + pk.TID.ToString() + "," + pk.Ball.ToString()
+                    + "," + pk.PKRS_Infected.ToString();
+                    byte[] info = Encoding.UTF8.GetBytes(data);
+                    ns.Write(info, 0, info.Length);
+                    ns.Flush();
+                }
                 client.Close();
             } catch
             {

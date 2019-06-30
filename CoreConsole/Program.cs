@@ -156,7 +156,7 @@ public class Server
                     {
                         data += move.ToString() + ",";
                     }
-                    data += pk.Nature.ToString() + "," + pk.IV_HP.ToString() + "," + pk.IV_ATK.ToString() + "," + pk.IV_DEF.ToString() + "," + pk.IV_SPA.ToString() + "," + pk.IV_SPD + "," + pk.IV_SPE
+                    data += pk.Nature.ToString() + "," + pk.IV_HP.ToString() + "," + pk.IV_ATK.ToString() + "," + pk.IV_DEF.ToString() + "," + pk.IV_SPD.ToString() + "," + pk.IV_SPE + "," + pk.IV_SPA
                     + "," + pk.Gender.ToString() + "," + pk.IsShiny.ToString() + "," + pk.Ability.ToString() + "," + pk.HeldItem.ToString() + "," + pk.TID.ToString() + "," + pk.Ball.ToString()
                     + "," + pk.PKRS_Infected.ToString();
                     data += "," + pk.SIZE_STORED.ToString();

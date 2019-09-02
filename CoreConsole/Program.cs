@@ -23,7 +23,9 @@ namespace CoreConsole
                 var server1 = new Server();
                 server1.Server_start(7272, "legality_check", false);
                 var server2 = new Server();
-                server2.Server_start(7273, "info_get", true);
+                server2.Server_start(7273, "info_get", false);
+                var server3 = new Server();
+                server3.Server_start(7274, "legal_fix", true);
             }
             else
             {
@@ -102,7 +104,7 @@ public class Server
     String type = "";
     public void Server_start(int port, string server_type, bool wait_loop)
     {
-        server = new TcpListener(IPAddress.Any, port);
+        server = new TcpListener(IPAddress.Loopback, port);
         type = server_type;
         server.Start();
         Accept_connection();  //accepts incoming connections
@@ -131,17 +133,30 @@ public class Server
 
         while (client.Connected)  //while the client is connected, we look for incoming messages
         {
-            byte[] size = new byte[8];
-            ns.Read(size, 0, size.Length);
-            string dataSizeStr = Encoding.UTF8.GetString(size, 0, size.Length);
-
-            int.TryParse(dataSizeStr, out int dataSize);
-
-            byte[] msg = new byte[dataSize];     //the messages arrive as byte array
             try
             {
+                byte[] generationBytes = new byte[8];
+                ns.Read(generationBytes, 0, generationBytes.Length);
+                string generationStr = Encoding.UTF8.GetString(generationBytes, 0, generationBytes.Length);
+                int.TryParse(generationStr, out int generation);
+                //Console.WriteLine("Generation sent over is: " + generationStr);
+                byte[] versionBytes = new byte[8];
+                string version = "";
+                if (type == "legal_fix"){
+                     ns.Read(versionBytes, 0, versionBytes.Length);
+                     version = Encoding.UTF8.GetString(versionBytes, 0, versionBytes.Length);
+                     Console.WriteLine("Version sent over is: " + version);
+                 }
+
+
+                byte[] size = new byte[8];
+                ns.Read(size, 0, size.Length);
+                string dataSizeStr = Encoding.UTF8.GetString(size, 0, size.Length);
+
+                int.TryParse(dataSizeStr, out int dataSize);
+                byte[] msg = new byte[dataSize];     //the messages arrive as byte array
                 ns.Read(msg, 0, msg.Length);   //the same networkstream reads the message sent by the client
-                var pk = PKMConverter.GetPKMfromBytes(msg);
+                var pk = PKMConverter.GetPKMfromBytes(msg, generation);
                 if(type == "legality_check")
                 {
                     var lc = new LegalityCheck(pk);
@@ -152,7 +167,7 @@ public class Server
                 {
                     string data = "";
                     data += pk.Nickname.ToString() + "," + pk.OT_Name.ToString() + "," + pk.CurrentLevel.ToString() + "," + pk.Species.ToString() + ",";
-                    foreach (int move in pk.GetMoveSet())
+                    foreach (int move in pk.Moves)
                     {
                         data += move.ToString() + ",";
                     }
@@ -180,10 +195,17 @@ public class Server
                     byte[] info = Encoding.UTF8.GetBytes(data);
                     ns.Write(info, 0, info.Length);
                     ns.Flush();
+                } else if (type == "legal_fix")
+                {
+
+                    var alm = new AutoLegality(pk, version);
+                    ns.Write(alm.GetLegalPKM().DecryptedBoxData, 0, alm.GetLegalPKM().DecryptedBoxData.Length);
+
                 }
                 client.Close();
-            } catch
+            } catch (Exception ex)
             {
+                Console.WriteLine(ex.ToString());
                 byte[] err = Encoding.Default.GetBytes("Not a Pokemon!");
                 ns.Write(err, 0, err.Length);
                 ns.Flush();

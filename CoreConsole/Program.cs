@@ -20,6 +20,8 @@ namespace CoreConsole
          
            if (args.Contains("-server"))
             {
+                // Init the database
+                Legal.RefreshMGDB(string.Empty);
                 var server1 = new Server();
                 server1.Server_start(7272, "legality_check", false);
                 var server2 = new Server();

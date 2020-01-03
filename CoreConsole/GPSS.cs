@@ -1,5 +1,6 @@
 ﻿using PKHeX.Core;
 using System;
+using System.Linq;
 using System.Runtime.Serialization;
 
 namespace CoreConsole
@@ -8,11 +9,214 @@ namespace CoreConsole
     {
         public GPSSSummary(PKM pkm, GameStrings strings) : base(pkm, strings)
         {
-           
+        }
+        
+        public Pokemon CreatePKMN()
+        {
+            try
+            {
+
+                var country = "N/A";
+                var region = "N/A";
+                var dsregion = "N/A";
+                if (CountryID != "N/A" && CountryID != "0")
+                {
+                    System.Tuple<string, string> cr = GeoLocation.GetCountryRegionText(int.Parse(CountryID), int.Parse(RegionID), "en");
+                    country = cr.Item1;
+                    region = cr.Item2;
+                }
+                switch (DSRegionID)
+                {
+                    case "N/A":
+                        dsregion = "None";
+                        break;
+                    case "0":
+                        dsregion = "Japan";
+                        break;
+                    case "1":
+                        dsregion = "North America";
+                        break;
+                    case "2":
+                        dsregion = "Europe";
+                        break;
+                    case "3":
+                        dsregion = "China";
+                        break;
+                    case "4":
+                        dsregion = "Korea";
+                        break;
+                    case "5":
+                        dsregion = "Taiwan";
+                        break;
+                }
+                var lc = new LegalityAnalysis(pkm);
+                var pkmn = new Pokemon
+                {
+                    ATK = ATK,
+                    ATK_EV = ATK_EV,
+                    ATK_IV = ATK_IV,
+                    Ability = Ability,
+                    AbilityNum = AbilityNum,
+                    AltForms = AltForms,
+                    Ball = Ball,
+                    Beauty = Beauty,
+                    Cool = Cool,
+                    Country = country,
+                    CountryID = CountryID,
+                    Cute = Cute,
+                    DEF = DEF,
+                    DEF_EV = DEF_EV,
+                    DEF_IV = DEF_IV,
+                    DSRegion = dsregion,
+                    DSRegionID = DSRegionID,
+                    EC = EC,
+                    ESV = ESV,
+                    EXP = EXP,
+                    EggLoc = EggLoc,
+                    Egg_Day = Egg_Day,
+                    Egg_Month = Egg_Month,
+                    Egg_Year = Egg_Year,
+                    Encounter = Encounter,
+                    FatefulFlag = FatefulFlag,
+                    Friendship = Friendship,
+                    Gender = Gender,
+                    GenderFlag = GenderFlag,
+                    Size = pkm.SIZE_STORED,
+                    HP = HP,
+                    HP_EV = HP_EV,
+                    HP_IV = HP_IV,
+                    HP_Type = HP_Type,
+                    HT = pkm.HT_Name,
+                    HeldItem = HeldItem,
+                    IsEgg = IsEgg,
+                    IsNicknamed = IsNicknamed,
+                    IsShiny = IsShiny,
+                    Legal = Legal,
+                    Level = Level,
+                    Markings = Markings,
+                    MetLevel = MetLevel,
+                    MetLoc = MetLoc,
+                    Met_Day = Met_Day,
+                    Met_Month = Met_Month,
+                    Met_Year = Met_Year,
+                    Move1 = Move1,
+                    Move1_PP = Move1_PP,
+                    Move1_PPUp = Move1_PPUp,
+                    Move2 = Move2,
+                    Move2_PP = Move2_PP,
+                    Move2_PPUp = Move2_PPUp,
+                    Move3 = Move3,
+                    Move3_PP = Move3_PP,
+                    Move3_PPUp = Move3_PPUp,
+                    Move4 = Move4,
+                    Move4_PP = Move4_PP,
+                    Move4_PPUp = Move4_PPUp,
+                    Nature = Nature,
+                    Nickname = Nickname,
+                    NotOT = NotOT,
+                    OT = OT,
+                    OTLang = OTLang,
+                    OT_Affection = OT_Affection,
+                    OT_Gender = OT_Gender,
+                    PID = PID,
+                    PKRS_Days = PKRS_Days,
+                    PKRS_Strain = PKRS_Strain,
+                    Position = Position ?? "",
+                    Region = region,
+                    RegionID = RegionID,
+                    Relearn1 = Relearn1,
+                    Relearn2 = Relearn2,
+                    Relearn3 = Relearn3,
+                    Relearn4 = Relearn4,
+                    SID = SID,
+                    SPA = SPA,
+                    SPA_EV = SPA_EV,
+                    SPA_IV = SPA_IV,
+                    SPD = SPD,
+                    SPD_EV = SPD_EV,
+                    SPD_IV = SPD_IV,
+                    SPE = SPE,
+                    SPE_EV = SPE_EV,
+                    SPE_IV = SPE_IV,
+                    Sheen = Sheen,
+                    Smart = Smart,
+                    Species = Species,
+                    SpecForm = pkm.SpecForm,
+                    TID = TID,
+                    TSV = TSV,
+                    Tough = Tough,
+                    Version = Version,
+                    IllegalReasons = lc.Report(),
+                    Checksum = Checksum,
+                    ItemNum = pkm.HeldItem
+                };
+                if (pkm.HT_Name == "")
+                {
+                    pkmn.HT = OT;
+                } 
+                var ds = FormConverter.GetFormList(pkm.Species, GameInfo.Strings.types, GameInfo.Strings.forms, GameInfo.GenderSymbolUnicode, pkm.Format);
+                if (ds.Count() > 1)
+                {
+                    pkmn.Form = ds[pkmn.AltForms];
+                }
+                else
+                {
+                    pkmn.Form = ds[0];
+                }
+                pkmn.HeldItemSpriteURL = "";
+                pkmn.SpeciesSpriteURL = "";
+                pkmn.Move1_Type = ConsoleIndex.mt[pkm.Move1].Type;
+                pkmn.Move2_Type = ConsoleIndex.mt[pkm.Move2].Type;
+                pkmn.Move3_Type = ConsoleIndex.mt[pkm.Move3].Type;
+                pkmn.Move4_Type = ConsoleIndex.mt[pkm.Move4].Type;
+                if (pkm.GetType() == typeof(PK4))
+                {
+                    pkmn.Generation = "4";
+                }
+                else if (pkm.GetType() == typeof(PK5))
+                {
+                    pkmn.Generation = "5";
+
+                }
+                else if (pkm.GetType() == typeof(PK6))
+                {
+                    pkmn.Generation = "6";
+                }
+                else if (pkm.GetType() == typeof(PK7))
+                {
+                    pkmn.Generation = "7";
+                }
+                else if (pkm.GetType() == typeof(PB7))
+                {
+                    pkmn.Generation = "LGPE";
+                }
+                else if (pkm.GetType() == typeof(PK8))
+                {
+                    pkmn.Generation = "8";
+                }
+                else if (pkm.GetType() == typeof(PK3))
+                {
+                    pkmn.Generation = "3";
+                }
+                else if (pkm.GetType() == typeof(PK2))
+                {
+                    pkmn.Generation = "2";
+                }
+                else if (pkm.GetType() == typeof(PK1))
+                {
+                    pkmn.Generation = "1";
+                }
+                return pkmn;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.ToString());
+                return null;
+            }
         }
     }
     [DataContract]
-    internal class Pokemon 
+    public class Pokemon 
     {
         [DataMember] internal string Generation;
         [DataMember] internal int Size;
@@ -36,6 +240,7 @@ namespace CoreConsole
         [DataMember] internal int Beauty;
         [DataMember] internal int TID;
         [DataMember] internal int SID;
+        [DataMember] internal string HT;
         [DataMember] internal int TSV;
         [DataMember] internal int Move1_PP;
         [DataMember] internal int Met_Month;

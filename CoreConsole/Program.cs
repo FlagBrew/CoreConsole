@@ -12,31 +12,45 @@ using CoreConsole;
 using CoreConsole.APIs;
 using Newtonsoft.Json;
 using PKHeX.Core;
+using QRCoder;
 
 namespace CoreConsole
 {
-
+    //"Gen8": [
     class Encounters
     {
-        public string EncounterType;
-        public List<EncounterGens> Generations;
+        public List<GenLoc> Gen8;
+        public List<GenLoc> Gen7;
+        public List<GenLoc> Gen6;
+        public List<GenLoc> Gen5;
+        public List<GenLoc> Gen4;
+        public List<GenLoc> Gen3;
+        public List<GenLoc> Gen2;
+        public List<GenLoc> Gen1;
+
     }
 
-    class EncounterGens
+    class GenLoc
     {
-        public string Generation;
-        public List<GameLoc> Locations;
+        public string EncounterType;
+        public List<Locs> Locations;
     }
-
-    class GameLoc
+    class Locs
     {
         public string Location;
         public List<string> Games;
+    }
+
+    class LearnableMove
+    {
+        public string MoveName;
+        public bool Learnable;
     }
     class ConsoleIndex
     {
         public static PKM pk;
         public static List<MoveType> mt;
+        public static string[] moveNames;
         static void Main(string[] args)
         {
             string appPath = Environment.CurrentDirectory;
@@ -49,7 +63,7 @@ namespace CoreConsole
                 RibbonStrings.ResetDictionary(GameInfo.Strings.ribbons);
                 LegalityAnalysis.MoveStrings = GameInfo.Strings.movelist;
                 LegalityAnalysis.SpeciesStrings = GameInfo.Strings.specieslist;
-                Util.GetStringList("countries");
+                moveNames = Util.GetMovesList(GameLanguage.DefaultLanguage);
                 // Init Move Types DB
 
                 var server1 = new Server();
@@ -175,13 +189,41 @@ public class Server
         return "";
     }
 
+    public string GetQueryString(NetworkStream ns)
+    {
+        byte[] query_size = Read_NS_Data(ns, 8);
+        string query_sizeStr = Encoding.UTF8.GetString(query_size, 0, query_size.Length);
+        int.TryParse(query_sizeStr, out int qSize);
+        byte[] query = Read_NS_Data(ns, qSize);
+        string queryStr = Encoding.UTF8.GetString(query, 0, query.Length);
+        queryStr = queryStr.Replace("| ", "|").Replace(" | ", "|").Replace(" |", "|");
+        return queryStr;
+    }
+
+    public PKM GetPokemon(NetworkStream ns)
+    {
+        try
+        {
+            byte[] size = Read_NS_Data(ns, 8);
+            string dataSizeStr = Encoding.UTF8.GetString(size, 0, size.Length);
+            int.TryParse(dataSizeStr, out int dataSize);
+            byte[] msg = Read_NS_Data(ns, dataSize);
+            var pk = PKMConverter.GetPKMfromBytes(msg);
+            return pk;
+        } catch (Exception e)
+        {
+            Console.WriteLine(e.ToString());
+            return null;
+        }
+    }
+
+
     public void Handle_connection(IAsyncResult result)  //the parameter is a delegate, used to communicate between threads
     {
         Accept_connection();  //once again, checking for any other incoming connections
         TcpClient client = server.EndAcceptTcpClient(result);  //creates the TcpClient
 
         NetworkStream ns = client.GetStream();
-        var ser = new DataContractJsonSerializer(typeof(Pokemon));
 
         while (client.Connected)  //while the client is connected, we look for incoming messages
         {
@@ -198,14 +240,11 @@ public class Server
                         version = Encoding.UTF8.GetString(versionBytes, 0, versionBytes.Length);
                         Console.WriteLine("Version sent over is: " + version);
                     }
-
-
-                    byte[] size = Read_NS_Data(ns, 8);
-                    string dataSizeStr = Encoding.UTF8.GetString(size, 0, size.Length);
-
-                    int.TryParse(dataSizeStr, out int dataSize);
-                    byte[] msg = Read_NS_Data(ns, dataSize);
-                    var pk = PKMConverter.GetPKMfromBytes(msg);
+                    var pk = GetPokemon(ns);
+                    if (pk == null)
+                    {
+                        throw new System.ArgumentException("There was an issue reading the Pokemon data, is it not a Pokemon? (or maybe timeout?)");
+                    }
                     if (type == "legality_check")
                     {
                         var lc = new LegalityAnalysis(pk);
@@ -216,194 +255,15 @@ public class Server
                     else if (type == "info_get")
                     {
 
-                        var strings = GameInfo.Strings;
-                        var summary = new GPSSSummary(pk, strings);
-                        var country = "N/A";
-                        var region = "N/A";
-                        var dsregion = "N/A";
-                        if (summary.CountryID != "N/A" && summary.CountryID != "0")
+                        var summary = new GPSSSummary(pk, GameInfo.Strings);
+                        var pkmn = summary.CreatePKMN();
+                        if (pkmn == null)
                         {
-                            System.Tuple<string, string> cr = GeoLocation.GetCountryRegionText(int.Parse(summary.CountryID), int.Parse(summary.RegionID), "en");
-                            country = cr.Item1;
-                            region = cr.Item2;
+                            throw new System.ArgumentException("There was an issue reading the Pokemon data, is it not a Pokemon? (or maybe timeout?)");
                         }
-                        switch (summary.DSRegionID)
-                        {
-                            case "N/A":
-                                dsregion = "None";
-                                break;
-                            case "0":
-                                dsregion = "Japan";
-                                break;
-                            case "1":
-                                dsregion = "North America";
-                                break;
-                            case "2":
-                                dsregion = "Europe";
-                                break;
-                            case "3":
-                                dsregion = "China";
-                                break;
-                            case "4":
-                                dsregion = "Korea";
-                                break;
-                            case "5":
-                                dsregion = "Taiwan";
-                                break;
-                        }
-                        var lc = new LegalityAnalysis(pk);
-                        var pkmn = new Pokemon
-                        {
-                            ATK = summary.ATK,
-                            ATK_EV = summary.ATK_EV,
-                            ATK_IV = summary.ATK_IV,
-                            Ability = summary.Ability,
-                            AbilityNum = summary.AbilityNum,
-                            AltForms = summary.AltForms,
-                            Ball = summary.Ball,
-                            Beauty = summary.Beauty,
-                            Cool = summary.Cool,
-                            Country = country,
-                            CountryID = summary.CountryID,
-                            Cute = summary.Cute,
-                            DEF = summary.DEF,
-                            DEF_EV = summary.DEF_EV,
-                            DEF_IV = summary.DEF_IV,
-                            DSRegion = dsregion,
-                            DSRegionID = summary.DSRegionID,
-                            EC = summary.EC,
-                            ESV = summary.ESV,
-                            EXP = summary.EXP,
-                            EggLoc = summary.EggLoc,
-                            Egg_Day = summary.Egg_Day,
-                            Egg_Month = summary.Egg_Month,
-                            Egg_Year = summary.Egg_Year,
-                            Encounter = summary.Encounter,
-                            FatefulFlag = summary.FatefulFlag,
-                            Friendship = summary.Friendship,
-                            Gender = summary.Gender,
-                            GenderFlag = summary.GenderFlag,
-                            Size = pk.SIZE_STORED,
-                            HP = summary.HP,
-                            HP_EV = summary.HP_EV,
-                            HP_IV = summary.HP_IV,
-                            HP_Type = summary.HP_Type,
-                            HeldItem = summary.HeldItem,
-                            IsEgg = summary.IsEgg,
-                            IsNicknamed = summary.IsNicknamed,
-                            IsShiny = summary.IsShiny,
-                            Legal = summary.Legal,
-                            Level = summary.Level,
-                            Markings = summary.Markings,
-                            MetLevel = summary.MetLevel,
-                            MetLoc = summary.MetLoc,
-                            Met_Day = summary.Met_Day,
-                            Met_Month = summary.Met_Month,
-                            Met_Year = summary.Met_Year,
-                            Move1 = summary.Move1,
-                            Move1_PP = summary.Move1_PP,
-                            Move1_PPUp = summary.Move1_PPUp,
-                            Move2 = summary.Move2,
-                            Move2_PP = summary.Move2_PP,
-                            Move2_PPUp = summary.Move2_PPUp,
-                            Move3 = summary.Move3,
-                            Move3_PP = summary.Move3_PP,
-                            Move3_PPUp = summary.Move3_PPUp,
-                            Move4 = summary.Move4,
-                            Move4_PP = summary.Move4_PP,
-                            Move4_PPUp = summary.Move4_PPUp,
-                            Nature = summary.Nature,
-                            Nickname = summary.Nickname,
-                            NotOT = summary.NotOT,
-                            OT = summary.OT,
-                            OTLang = summary.OTLang,
-                            OT_Affection = summary.OT_Affection,
-                            OT_Gender = summary.OT_Gender,
-                            PID = summary.PID,
-                            PKRS_Days = summary.PKRS_Days,
-                            PKRS_Strain = summary.PKRS_Strain,
-                            Position = summary.Position ?? "",
-                            Region = region,
-                            RegionID = summary.RegionID,
-                            Relearn1 = summary.Relearn1,
-                            Relearn2 = summary.Relearn2,
-                            Relearn3 = summary.Relearn3,
-                            Relearn4 = summary.Relearn4,
-                            SID = summary.SID,
-                            SPA = summary.SPA,
-                            SPA_EV = summary.SPA_EV,
-                            SPA_IV = summary.SPA_IV,
-                            SPD = summary.SPD,
-                            SPD_EV = summary.SPD_EV,
-                            SPD_IV = summary.SPD_IV,
-                            SPE = summary.SPE,
-                            SPE_EV = summary.SPE_EV,
-                            SPE_IV = summary.SPE_IV,
-                            Sheen = summary.Sheen,
-                            Smart = summary.Smart,
-                            Species = summary.Species,
-                            SpecForm = pk.SpecForm,
-                            TID = summary.TID,
-                            TSV = summary.TSV,
-                            Tough = summary.Tough,
-                            Version = summary.Version,
-                            IllegalReasons = lc.Report(),
-                            Checksum = summary.Checksum,
-                            ItemNum = pk.HeldItem
-                        };
-                        var ds = FormConverter.GetFormList(pk.Species, GameInfo.Strings.types, GameInfo.Strings.forms, GameInfo.GenderSymbolUnicode, pk.Format);
-                        if (ds.Count() > 1)
-                        {
-                            pkmn.Form = ds[pkmn.AltForms];
-                        }
-                        else
-                        {
-                            pkmn.Form = ds[0];
-                        }
-                        pkmn.HeldItemSpriteURL = "";
-                        pkmn.SpeciesSpriteURL = "";
-                        pkmn.Move1_Type = ConsoleIndex.mt[pk.Move1].Type;
-                        pkmn.Move2_Type = ConsoleIndex.mt[pk.Move2].Type;
-                        pkmn.Move3_Type = ConsoleIndex.mt[pk.Move3].Type;
-                        pkmn.Move4_Type = ConsoleIndex.mt[pk.Move4].Type;
-                        if (pk.GetType() == typeof(PK4))
-                        {
-                            pkmn.Generation = "4";
-                        }
-                        else if (pk.GetType() == typeof(PK5))
-                        {
-                            pkmn.Generation = "5";
-
-                        }
-                        else if (pk.GetType() == typeof(PK6))
-                        {
-                            pkmn.Generation = "6";
-                        }
-                        else if (pk.GetType() == typeof(PK7))
-                        {
-                            pkmn.Generation = "7";
-                        }
-                        else if (pk.GetType() == typeof(PB7))
-                        {
-                            pkmn.Generation = "LGPE";
-                        }
-                        else if (pk.GetType() == typeof(PK8))
-                        {
-                            pkmn.Generation = "8";
-                        }
-                        else if (pk.GetType() == typeof(PK3))
-                        {
-                            pkmn.Generation = "3";
-                        }
-                        else if (pk.GetType() == typeof(PK2))
-                        {
-                            pkmn.Generation = "2";
-                        }
-                        else if (pk.GetType() == typeof(PK1))
-                        {
-                            pkmn.Generation = "1";
-                        }
+                        var ser = new DataContractJsonSerializer(typeof(Pokemon));
                         ser.WriteObject(ns, pkmn);
+                       
                     }
                     else if (type == "legal_fix")
                     {
@@ -420,103 +280,252 @@ public class Server
                     int.TryParse(request_string_sizeStr, out int dataSize);
                     byte[] request_type = Read_NS_Data(ns, dataSize);
                     string request_typeStr = Encoding.UTF8.GetString(request_type, 0, request_type.Length);
-                    if(request_typeStr == "enc_base64_get")
-                    {
-                        Console.WriteLine("Bot requested a base64 string of an encrypted pokemon! Let's do it!");
-
-
-                        byte[] size = Read_NS_Data(ns, 8);
-                        string dataSizeStr = Encoding.UTF8.GetString(size, 0, size.Length);
-                        int.TryParse(dataSizeStr, out int dSize);
-                        byte[] msg = Read_NS_Data(ns, dSize);
-                        var pk = PKMConverter.GetPKMfromBytes(msg);
-                        var b64 = System.Convert.ToBase64String(pk.EncryptedBoxData);
-                        Console.WriteLine(b64);
-                        ns.Write(Encoding.ASCII.GetBytes(b64), 0, b64.Length);
-
-                    } else if(request_typeStr == "encounter")
-                    {
-                        Console.WriteLine("Encounter lookup!");
-                        byte[] pkmn_name_size = Read_NS_Data(ns, 8);
-                        string pkmn_name_sizeStr = Encoding.UTF8.GetString(pkmn_name_size, 0, pkmn_name_size.Length);
-                        int.TryParse(pkmn_name_sizeStr, out int dSize);
-                        byte[] query = Read_NS_Data(ns, dSize);
-                        string queryStr = Encoding.UTF8.GetString(query, 0, query.Length);
-
-                        queryStr = queryStr.Replace(", ", ",");
-                        var queries = queryStr.Split(',');
-                        
-                        
-                        var data = EncounterLearn.GetLearnSummary(queries[0], queries.Skip(1));
-                        List<Encounters> e = new List<Encounters>();
-                        Encounters tmpE = new Encounters();
-                        List<EncounterGens> tmpGL = new List<EncounterGens>();
-                        bool first = true;
-                        foreach (var line in data)
-                        {
-                            if (line.StartsWith("="))
+                    switch (request_typeStr) {
+                        case "enc_base64_get":
                             {
-                                if (!first)
+                                var qr = QRMessageUtil.GetMessage(GetPokemon(ns));
+                                QRCodeGenerator qrGenerator = new QRCodeGenerator();
+                                QRCodeData qrCodeData = qrGenerator.CreateQrCode(qr, QRCodeGenerator.ECCLevel.L);
+                                using (PngByteQRCode qrCode = new PngByteQRCode(qrCodeData))
                                 {
-                                    tmpE.Generations = tmpGL;
-                                    e.Add(tmpE);
-                                    tmpGL = new List<EncounterGens>();
+                                    byte[] qrCodeAsPngByteArr = qrCode.GetGraphic(3);
+                                    ns.Write(qrCodeAsPngByteArr, 0, qrCodeAsPngByteArr.Length);
                                 }
-                                first = false;
-                                tmpE = new Encounters
-                                {
-                                    EncounterType = line.Replace("=", "")
-                                };
-                                continue;
+
+                                qrGenerator.Dispose();
+                                break;
                             }
-                            var gen = GetStringFromRegex(@"Gen[0-9]", line);
-                            var loc = GetStringFromRegex(@"(?<=.{8}).+?(?=:)", line);
-                            var games = GetStringFromRegex(@"([\t ][A-Z |,]{1,100}$|Any)", line);
-                            games = games.Replace(" ", "");
-                            games = games.Trim(':');
-                            games = games.Trim('\t');
-                            string[] gamesArray = games.Split(',');
-                            if (!first)
+                        case "encounter":
                             {
-                                var tmpLoc = new GameLoc
+                                var queryStr = GetQueryString(ns);
+                                
+                                var queries = queryStr.Split('|');
+
+                                if(!Enum.GetNames(typeof(Species)).Any(s => s.ToLower() == queries[0]))
                                 {
-                                    Location = loc,
-                                    Games = new List<string>()
-                                };
-                                foreach (var game in gamesArray)
-                                {
-                                    tmpLoc.Games.Add(game);
+                                    throw new System.ArgumentException("Invalid pokemon name provided!");
                                 }
-                                var tmp = tmpGL.FirstOrDefault(g => g.Generation == gen);
-                                if (tmp != null)
+                                var data = EncounterLearn.GetLearnSummary(queries[0], queries.Skip(1));
+                                var e = new Encounters
                                 {
-                                    tmp.Locations.Add(tmpLoc);
-                                } else
+                                    Gen1 = new List<GenLoc>(),
+                                    Gen2 = new List<GenLoc>(),
+                                    Gen3 = new List<GenLoc>(),
+                                    Gen4 = new List<GenLoc>(),
+                                    Gen5 = new List<GenLoc>(),
+                                    Gen6 = new List<GenLoc>(),
+                                    Gen7 = new List<GenLoc>(),
+                                    Gen8 = new List<GenLoc>(),
+                                };
+                                bool first = true;
+                                var enc = "";
+                                foreach (var line in data)
                                 {
-                                    EncounterGens tmpEG = new EncounterGens
+                                    if (line.StartsWith("="))
                                     {
-                                        Generation = gen,
-                                        Locations = new List<GameLoc>
-                                    {
-                                        tmpLoc
+                                        if (!first)
+                                        {
+                                        }
+                                        enc = line.Replace("=", "");
+                                        first = false;
+                                        continue;
                                     }
-                                    };
-                                    tmpGL.Add(tmpEG);
+                                    var gen = GetStringFromRegex(@"Gen[0-9]", line);
+                                    var loc = GetStringFromRegex(@"(?<=.{8}).+?(?=:)", line);
+                                    var games = GetStringFromRegex(@"([\t ][A-Z |,]{1,100}$|Any)", line);
+                                    games = games.Replace(" ", "");
+                                    games = games.Trim(':');
+                                    games = games.Trim('\t');
+                                    string[] gamesArray = games.Split(',');
+                                    GenLoc entry = new GenLoc();
+                                    switch (gen)
+                                    {
+                                        case "Gen1":
+                                            {
+                                                entry = e.Gen1.FirstOrDefault(l => l.EncounterType == enc);
+                                                break;
+                                            }
+                                        case "Gen2":
+                                            {
+                                                entry = e.Gen2.FirstOrDefault(l => l.EncounterType == enc);
+                                                break;
+                                            }
+
+                                        case "Gen3":
+                                            {
+                                                entry = e.Gen3.FirstOrDefault(l => l.EncounterType == enc);
+                                                break;
+                                            }
+                                        
+                                        case "Gen4":
+                                            {
+                                                entry = e.Gen4.FirstOrDefault(l => l.EncounterType == enc);
+                                                break;
+                                            }
+                                        case "Gen5":
+                                            {
+                                                entry = e.Gen5.FirstOrDefault(l => l.EncounterType == enc);
+                                                break;
+                                            }
+                                        case "Gen6":
+                                            {
+                                                entry = e.Gen6.FirstOrDefault(l => l.EncounterType == enc);
+                                                break;
+                                            }
+                                        case "Gen7":
+                                            {
+                                                entry = e.Gen7.FirstOrDefault(l => l.EncounterType == enc);
+                                                break;
+                                            }
+                                        case "Gen8":
+                                            {
+                                                entry = e.Gen8.FirstOrDefault(l => l.EncounterType == enc);
+                                                break;
+                                            }
+
+                                    }
+                                    if (entry != null)
+                                    {
+                                        var tmpGamesList = new List<string>();
+                                        foreach (var game in gamesArray)
+                                        {
+                                            tmpGamesList.Add(game);
+                                        }
+                                        entry.Locations.Add(new Locs
+                                        {
+
+                                            Location = loc,
+                                            Games = tmpGamesList,
+                                        });
+                                    }
+                                    else
+                                    {
+                                        var tmpGamesList = new List<string>();
+                                        foreach (var game in gamesArray)
+                                        {
+                                            tmpGamesList.Add(game);
+                                        }
+                                        var tmpLocations = new List<Locs>
+                                        {
+                                            new Locs
+                                            {
+                                                Location = loc,
+                                                Games = tmpGamesList,
+                                            }
+                                        };
+                                        var tmpGenLoc = new GenLoc
+                                        {
+                                            EncounterType = enc,
+                                            Locations = tmpLocations,
+                                        };
+                                        switch (gen)
+                                        {
+                                            case "Gen1":
+                                                {
+                                                    e.Gen1.Add(tmpGenLoc);
+                                                    break;
+                                                }
+                                            case "Gen2":
+                                                {
+                                                    e.Gen2.Add(tmpGenLoc);
+                                                    break;
+                                                }
+
+                                            case "Gen3":
+                                                {
+                                                    e.Gen3.Add(tmpGenLoc);
+                                                    break;
+                                                }
+
+                                            case "Gen4":
+                                                {
+                                                    e.Gen4.Add(tmpGenLoc);
+                                                    break;
+                                                }
+                                            case "Gen5":
+                                                {
+                                                    e.Gen5.Add(tmpGenLoc);
+                                                    break;
+                                                }
+                                            case "Gen6":
+                                                {
+                                                    e.Gen6.Add(tmpGenLoc);
+                                                    break;
+                                                }
+                                            case "Gen7":
+                                                {
+                                                    e.Gen7.Add(tmpGenLoc);
+                                                    break;
+                                                }
+                                            case "Gen8":
+                                                {
+                                                    e.Gen8.Add(tmpGenLoc);
+                                                    break;
+                                                }
+
+                                        }
+                                    }
                                 }
+                                var json = JsonConvert.SerializeObject(e);
+                                ns.Write(Encoding.UTF8.GetBytes(json), 0, Encoding.UTF8.GetBytes(json).Length);
+                                break;
                             }
-                            if (line == data.Last())
+                        case "move_learn":
                             {
-                                tmpE.Generations = tmpGL;
-                                e.Add(tmpE);
+                                var queryStr = GetQueryString(ns);
+                                var queries = queryStr.Split('|');
+                                if (!Enum.GetNames(typeof(Species)).Any(s => s.ToLower() == queries[0]))
+                                {
+                                    throw new System.ArgumentException("Invalid pokemon name provided!");
+                                }
+                                var i = 1;
+                                var moves = new List<LearnableMove>();
+                                foreach (var move in queries.Skip(1))
+                                {
+                                    if (i > 4)
+                                    {
+                                        break;
+                                    }
+                                    var workaround = move.Split(',');
+                                    var tmpMove = new LearnableMove
+                                    {
+                                        MoveName = move,
+                                    };
+                                    if (!ConsoleIndex.moveNames.Any(m => m.ToLower().Contains(move.ToLower()))){
+                                        tmpMove.Learnable = false;
+                                    } else
+                                    {
+                                        tmpMove.Learnable = bool.Parse(EncounterLearn.CanLearn(queries[0], workaround).ToString());
+                                    }
+                                    moves.Add(tmpMove);
+                                    i++;
+                                }
+                                var json = JsonConvert.SerializeObject(moves);
+                                ns.Write(Encoding.UTF8.GetBytes(json), 0, Encoding.UTF8.GetBytes(json).Length);
+                                break;
                             }
-                        }
-                        var json = JsonConvert.SerializeObject(e);
-                        var data_string = string.Join("\n", data.ToArray());
-                        ns.Write(Encoding.UTF8.GetBytes(json), 0, Encoding.UTF8.GetBytes(json).Length);
-                    }
-                    else
-                    {
-                        Console.WriteLine("I don't know how to handle " + request_typeStr + " yet!");
+                        case "poke_info":
+                            {
+                                var summary = new GPSSSummary(GetPokemon(ns), GameInfo.Strings);
+                                var pkmn = summary.CreatePKMN();
+                                if (pkmn == null)
+                                {
+                                    throw new System.ArgumentException("There was an issue reading the Pokemon data, is it not a Pokemon? (or maybe timeout?)");
+                                }
+                                var ser = new DataContractJsonSerializer(typeof(Pokemon));
+                                ser.WriteObject(ns, pkmn);
+                                break;
+                            }
+                        case "index_lookup":
+                            {
+                                var queryStr = GetQueryString(ns);
+                                break;
+                            }
+                         default: {
+                                    ns.Write(Encoding.UTF8.GetBytes("I don't know how to handle this query type yet!"), 0, Encoding.UTF8.GetBytes("I don't know how to handle this query type yet!").Length);
+                                    break;
+                                }
+
                     }
                 }
                 ns.Flush();

@@ -63,7 +63,6 @@
     <Compile Include="APIs\LegalityCheck.cs" />
     <Compile Include="MoveType.cs" />
     <Compile Include="GPSS.cs" />
-    <Compile Include="pkm.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

@@ -652,14 +652,13 @@ public class Server
 
                     }
                 }
-                ns.Flush();
-                ns.Dispose();
-                client.Dispose();
             } catch (Exception ex)
             {
                 Console.WriteLine(ex.ToString());
                 byte[] err = Encoding.Default.GetBytes("Not a Pokemon!");
                 ns.Write(err, 0, err.Length);
+            } finally
+            {
                 ns.Flush();
                 ns.Dispose();
                 client.Dispose();

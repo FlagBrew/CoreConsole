@@ -599,6 +599,10 @@ public class Server
                                 GameVersion versionInt = 0;
 
                                 var pkmn = GetPokemon(ns);
+                                if (pkmn == null)
+                                {
+                                    throw new System.ArgumentException("There was an issue reading the Pokemon data, is it not a Pokemon? (or maybe timeout?)");
+                                }
                                 if (versionStr == "?")
                                 {
                                     versionInt = GetPlaceholderVersion(pkmn);

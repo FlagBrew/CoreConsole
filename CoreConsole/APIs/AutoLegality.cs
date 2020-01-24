@@ -9,7 +9,7 @@ namespace CoreConsole.APIs
         public static LegalityCheck lc;
         public static bool Legal => lc.Legal;
         public static PKM legalpk;
-        private bool debug = true;
+        private readonly bool debug = true;
 
         public AutoLegality(PKM pk, string ver)
         {
@@ -30,17 +30,45 @@ namespace CoreConsole.APIs
 
         public PKM Legalize(PKM pk, GameVersion ver)
         {
+            var ot_name = pk.OT_Name;
+            var ht_name = pk.HT_Name;
+  
+            var keep_original_data = true;
             if (debug) Console.WriteLine(lc.Report);
-            var sav = SaveUtil.GetBlankSAV(ver, "PKHeX");
+            if (lc.Report.ToLower().Contains("wordfilter") || lc.Report.Contains("SID") || lc.Report.Contains("TID"))
+            {
+                keep_original_data = false;
+                ht_name = "PKHeX";
+            }
+            var sav = SaveUtil.GetBlankSAV(ver, ht_name);
             var updated = sav.Legalize(pk);
+            var new_sid = updated.SID;
+            var old_new_name = updated.OT_Name;
+            var new_tid = updated.TID;
+            if (keep_original_data)
+            {
+                updated.TID = pk.TID;
+                updated.SID = pk.SID;
+                updated.OT_Name = ot_name;
+
+            }
             lc = new LegalityCheck(updated);
             if (Legal)
             {
                 legalpk = updated;
-                Console.WriteLine("====================================");
-                Console.WriteLine("= Legalized with Auto Legality Mod =");
-                Console.WriteLine("====================================");
-                Console.WriteLine(lc.VerboseReport);
+            } else
+            {
+                if (keep_original_data)
+                {
+                    updated.TID = new_tid;
+                    updated.OT_Name = old_new_name;
+                    updated.SID = new_sid;
+                    lc = new LegalityCheck(updated);
+                    if (Legal)
+                    {
+                        legalpk = updated;
+                    }
+                }
             }
             return updated;
         }

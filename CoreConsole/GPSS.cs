@@ -1,5 +1,6 @@
 ﻿using PKHeX.Core;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.Serialization;
 
@@ -10,12 +11,344 @@ namespace CoreConsole
         public GPSSSummary(PKM pkm, GameStrings strings) : base(pkm, strings)
         {
         }
-        
+
+        private readonly List<string> pkmnWithFemaleForms = new List<string> { "abomasnow", "aipom", "alakazam", "ambipom", "beautifly", "bibarel", "bidoof", "blaziken", "buizel", "butterfree", "cacturne", "camerupt", "combee", "combusken", "croagunk", "dodrio", "doduo", "donphan", "dustox", "finneon", "floatzel", "frillish", "gabite", "garchomp", "gible", "girafarig", "gligar", "gloom", "golbat", "goldeen", "gulpin", "gyarados", "heracross", "hippopotas", "hippowdon", "houndoom", "hypno", "jellicent", "kadabra", "kricketot", "kricketune", "ledian", "ledyba", "ludicolo", "lumineon", "luxio", "luxray", "magikarp", "mamoswine", "medicham", "meditite", "meganium", "milotic", "murkrow", "nidoran", "numel", "nuzleaf", "octillery", "pachirisu", "pikachu", "piloswine", "politoed", "pyroar", "quagsire", "raichu", "raticate", "rattata", "relicanth", "rhydon", "rhyhorn", "rhyperior", "roselia", "roserade", "scizor", "scyther", "seaking", "shiftry", "shinx", "sneasel", "snover", "spinda", "staraptor", "staravia", "starly", "steelix", "sudowoodo", "swalot", "tangrowth", "torchic", "toxicroak", "unfezant", "unown", "ursaring", "venusaur", "vileplume", "weavile", "wobbuffet", "wooper", "xatu", "zubat" };
+
+        private string GetPokeSprite(int pokemonNum, string pokemonName, string pokemonGender, string origin_game, string form, string generation, bool isShiny)
+        {
+            if(pokemonNum > 807 || generation == "8")
+            {
+                return "https://flagbrew.org/static/img/blank.png";
+            }
+            var formSet = false;
+            switch (pokemonName)
+            {
+                case "Type: Null":
+                    {
+                        pokemonName = "type-null";
+                        break;
+                    }
+                case "Farfetch'd":
+                case "Farfetch’d":
+                    {
+                        pokemonName = "farfetchd";
+                        break;
+                    }
+                case "Nidoran♂":
+                case "Nidoran♀":
+                    {
+                        if(pokemonName.Contains("♂"))
+                        {
+                            pokemonName = "nidoran-m";
+                            
+                        } else
+                        {
+                            pokemonName = "nidoran-f";
+                        }
+                        formSet = true;
+                        break;
+                    }
+                case "Mr. Mime":
+                    {
+                        pokemonName = "mr-mime";
+                        break;
+                    }
+                case "Mime Jr.":
+                    {
+                        pokemonName = "mime-jr";
+                        break;
+                    }
+                case "Tapu Koko":
+                case "Tapu Lele":
+                case "Tapu Bulu":
+                case "Tapu Fini":
+                    {
+                        pokemonName = pokemonName.Replace(" ", "-");
+                        break;
+                    }
+                case "Flabébé":
+                    {
+                        pokemonName = "flabebe";
+                        break;
+                    }
+                case "Meowstic":
+                    {
+                        if(pokemonGender == "M")
+                        {
+                            form = "male";
+                        } else
+                        {
+                            form = "female";
+                        }
+                        break;
+                    }
+                case "Rockruff":
+                    {
+                        formSet = true;
+                        break;
+                    }
+                case "Genesect":
+                    {
+                        formSet = true;
+                        break;
+                    }
+                case "Necrozma":
+                    {
+                        switch (form.ToLower())
+                        {
+                            case "dawn":
+                                {
+                                    form = "dawn-wings";
+                                    break;
+                                }
+                            case "dusk":
+                                {
+                                    form = "dusk-mane";
+                                    break;
+                                }
+                        }
+                        break;
+                    }
+            }
+            if(form.ToLower() == "large" && pokemonName.ToLower() != "gourgeist")
+            {
+                formSet = true;
+            }
+            pokemonName = pokemonName.Replace("'", "").Replace("é", "e").Replace("’", "");
+            form = form.Replace("%-C", "").Replace("%", "").Replace("é", "e");
+            var url = "https://sprites.fm1337.com/";
+            if (generation == "LGPE") {
+                generation = "7";
+            }
+            int result = Int32.Parse(generation);
+            switch (generation)
+            {
+                case "1":
+                    {
+                        url += "red-blue/normal/" + pokemonName.ToLower() + "-color";
+                        formSet = true;
+                        break;
+                    }
+                case "2":
+                    {
+                        url += "crystal/";
+                        if (isShiny)
+                        {
+                            url += "shiny/" + pokemonName.ToLower();
+                        } else
+                        {
+                            url += "normal/" + pokemonName.ToLower();
+                        }
+                        break;
+                    }
+                case "3":
+                    {
+                        url += "emerald/";
+                        if (isShiny)
+                        {
+                            url += "shiny/" + pokemonName.ToLower();
+                        }
+                        else
+                        {
+                            url += "normal/" + pokemonName.ToLower();
+                        }
+                        break;
+                    }
+                case "4":
+                    {
+                        url += "heartgold-soulsilver/";
+                        if (isShiny)
+                        {
+                            url += "shiny/" + pokemonName.ToLower();
+                        }
+                        else
+                        {
+                            url += "normal/" + pokemonName.ToLower();
+                        }
+                        break;
+                    }
+                case "5":
+                    {
+                        url += "black-white-2/";
+                        if (isShiny)
+                        {
+                            url += "shiny/" + pokemonName.ToLower();
+                        }
+                        else
+                        {
+                            url += "normal/" + pokemonName.ToLower();
+                        }
+                        break;
+                    }
+                case "6":
+                    {
+                        url += "omega-ruby-alpha-sapphire/";
+                        if (isShiny)
+                        {
+                            url += "shiny/" + pokemonName.ToLower();
+                        }
+                        else
+                        {
+                            url += "normal/" + pokemonName.ToLower();
+                        }
+                        break;
+                    }
+                case "7":
+                    {
+                        url += "ultra-sun-ultra-moon/";
+                        if (isShiny)
+                        {
+                            url += "shiny/" + pokemonName.ToLower();
+                        }
+                        else
+                        {
+                            url += "normal/" + pokemonName.ToLower();
+                        }
+                        break;
+                    }
+            }
+            switch (pokemonNum)
+            {
+                case 774:
+                    {
+                        if (form.StartsWith("M"))
+                        {
+                            form = "meteor";
+                        } else
+                        {
+                            form = form.Replace("C-", "").ToLower() + "-core";
+                        }
+                        url += "-" + form;
+                        formSet = true;
+                        break;
+                    }
+                case 201:
+                    {
+                        if (form == "!")
+                        {
+                            form = "em";
+                        } else if (form == "?")
+                        {
+                            form = "qm";
+                        } else
+                        {
+                            form = form.ToLower();
+                        }
+                        url += "-" + form;
+                        formSet = true;
+                        break;
+                    }
+                case 386:
+                case 493:
+                case 479:
+                case 646:
+                case 550:
+                    {
+                        if(result == 5 && pokemonName.ToLower() == "kyurem" || result < 5 && pokemonName.ToLower() == "rotom")
+                        {
+                            formSet = true;
+                        } else if (result == 5 && pokemonName.ToLower() == "basculin") {
+                            url += "-" + form.ToLower() + "-striped";
+                            formSet = true;
+                        } else {
+                            url += "-" + form.ToLower();
+                            formSet = true;
+                        }
+                        break;
+                    }
+                case 25:
+                    {
+                        if(form.ToLower() != "normal")
+                        {
+                            if (result == 6)
+                            {
+                                url += "-cosplay";
+                                formSet = true;
+                            } else if (result == 7)
+                            {
+                                if (form.ToLower() != "cosplay")
+                                {
+                                    url += "-" + form.ToLower() + "-cap";
+                                    formSet = true;
+                                } else
+                                {
+                                    url += "-cosplay";
+                                    formSet = true;
+                                }
+                            }
+                        }
+                        break;
+                    }
+                case 676:
+                    {
+                        if (form.ToLower() == "natural")
+                        {
+                            formSet = true;
+                        }
+                        break;
+                    }
+                case 664:
+                case 665:
+                case 658:
+                    {
+                        formSet = true;
+                        break;
+                    }
+                case 414:
+                    {
+                        formSet = true;
+                        break;
+                    }
+                case 741:
+                    {
+                        if(form.ToLower() == "pa’u")
+                        {
+                            form = "pau";
+                        }
+                        break;
+                    }
+                case 778:
+                    {
+                        if(form.ToLower() == "disguised")
+                        {
+                            formSet = true;
+                        }
+
+                        break;
+                    }
+            }
+            
+            if(!formSet && result > 3)
+            {
+                if(form.ToLower() != "normal" && form != "" && form != "♀")
+                {
+                    if(form.ToLower() == "alola")
+                    {
+                        form = "alolan";
+                    }
+                    url += "-" + form.Replace(" ", "-").ToLower();
+                    formSet = true;
+                }
+            }
+            if (pkmnWithFemaleForms.Any(p => p == pokemonName.ToLower()) && pokemonGender == "F" && result > 3 && !formSet)
+            {
+                if (form.ToLower() == "normal" && form == "")
+                {
+                    url += "-f";
+                    formSet = true;
+                }
+            }
+
+            url += ".png";
+           // Console.WriteLine(origin_game);
+           // Console.WriteLine(form);
+           // Console.WriteLine(generation);
+            return url;
+        }
         public Pokemon CreatePKMN()
         {
             try
             {
-
                 var country = "N/A";
                 var region = "N/A";
                 var dsregion = "N/A";
@@ -164,7 +497,6 @@ namespace CoreConsole
                     pkmn.Form = ds[0];
                 }
                 pkmn.HeldItemSpriteURL = "";
-                pkmn.SpeciesSpriteURL = "";
                 pkmn.Move1_Type = ConsoleIndex.mt[pkm.Move1].Type;
                 pkmn.Move2_Type = ConsoleIndex.mt[pkm.Move2].Type;
                 pkmn.Move3_Type = ConsoleIndex.mt[pkm.Move3].Type;
@@ -206,6 +538,7 @@ namespace CoreConsole
                 {
                     pkmn.Generation = "1";
                 }
+                pkmn.SpeciesSpriteURL = GetPokeSprite(pkm.Species, pkmn.Species, pkmn.Gender, pkmn.Version, pkmn.Form, pkmn.Generation, pkmn.IsShiny);
                 return pkmn;
             }
             catch (Exception ex)

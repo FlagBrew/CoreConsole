@@ -46,6 +46,16 @@ namespace CoreConsole
         public string MoveName;
         public bool Learnable;
     }
+
+    class LegalityReturn
+    {
+        public string pokemon;
+        public string qr;
+        public string species;
+        public bool ran;
+        public bool success;
+        public string[] report;
+    }
     class ConsoleIndex
     {
         public static PKM pk;
@@ -59,7 +69,7 @@ namespace CoreConsole
            if (args.Contains("-server"))
             {
                 // Init the database
-                Legal.RefreshMGDB(string.Empty);
+                EncounterEvent.RefreshMGDB(string.Empty);
                 RibbonStrings.ResetDictionary(GameInfo.Strings.ribbons);
                 LegalityAnalysis.MoveStrings = GameInfo.Strings.movelist;
                 LegalityAnalysis.SpeciesStrings = GameInfo.Strings.specieslist;
@@ -212,12 +222,73 @@ public class Server
             return pk;
         } catch (Exception e)
         {
+            Console.WriteLine("fuck!");
             Console.WriteLine(e.ToString());
             return null;
         }
+
     }
+    public GameVersion GetPlaceholderVersion(PKM pkm)
+    {
+        GameVersion version = 0;
+        if (pkm.GetType() == typeof(PK4))
+        {
+            version = GameVersion.HG;
+        }
+        else if (pkm.GetType() == typeof(PK5))
+        {
+            version = GameVersion.B2;
 
+        }
+        else if (pkm.GetType() == typeof(PK6))
+        {
+            version = GameVersion.OR;
+        }
+        else if (pkm.GetType() == typeof(PK7))
+        {
+            version = GameVersion.UM;
+        }
+        else if (pkm.GetType() == typeof(PB7))
+        {
+            version = GameVersion.GE;
+        }
+        else if (pkm.GetType() == typeof(PK8))
+        {
+            version = GameVersion.SW;
+        }
+        else if (pkm.GetType() == typeof(PK3))
+        {
+            version = GameVersion.E;
+        }
+        else if (pkm.GetType() == typeof(PK2))
+        {
+            version = GameVersion.C;
+        }
+        else if (pkm.GetType() == typeof(PK1))
+        {
+            version = GameVersion.YW;
+        }
+        return version;
+    }
+    public byte[] GenQR(PKM pokemon)
+    {
+        try
+        {
+            string data = QRMessageUtil.GetMessage(pokemon);
+            QRCodeGenerator qrGenerator = new QRCodeGenerator();
+            QRCodeData qrCodeData = qrGenerator.CreateQrCode(data, QRCodeGenerator.ECCLevel.L);
+            PngByteQRCode qrCode = new PngByteQRCode(qrCodeData);
+            byte[] qrCodeAsPngByteArr = qrCode.GetGraphic(3);
+            qrCode.Dispose();
+            qrGenerator.Dispose();
+            return qrCodeAsPngByteArr;
+        } catch (Exception e)
+        {
+            Console.WriteLine(e.ToString());
+            return null;
+        }
 
+    }
     public void Handle_connection(IAsyncResult result)  //the parameter is a delegate, used to communicate between threads
     {
         Accept_connection();  //once again, checking for any other incoming connections
@@ -283,16 +354,14 @@ public class Server
                     switch (request_typeStr) {
                         case "enc_base64_get":
                             {
-                                var qr = QRMessageUtil.GetMessage(GetPokemon(ns));
-                                QRCodeGenerator qrGenerator = new QRCodeGenerator();
-                                QRCodeData qrCodeData = qrGenerator.CreateQrCode(qr, QRCodeGenerator.ECCLevel.L);
-                                using (PngByteQRCode qrCode = new PngByteQRCode(qrCodeData))
+                                var qr = GenQR(GetPokemon(ns));
+                                if (qr == null || qr.Length == 0) { 
+                                    ns.Write(Encoding.UTF8.GetBytes("."), 0, Encoding.UTF8.GetBytes(".").Length);
+                                    //throw new System.ArgumentException("Tried to upload something that wasn't a pokemon or something else went wrong during qr generation!");
+                                } else
                                 {
-                                    byte[] qrCodeAsPngByteArr = qrCode.GetGraphic(3);
-                                    ns.Write(qrCodeAsPngByteArr, 0, qrCodeAsPngByteArr.Length);
+                                    ns.Write(qr, 0, qr.Length);
                                 }
-
-                                qrGenerator.Dispose();
                                 break;
                             }
                         case "encounter":
@@ -386,6 +455,10 @@ public class Server
                                     }
                                     if (entry != null)
                                     {
+                                        if (entry.Locations == null)
+                                        {
+                                            entry.Locations = new List<Locs>();
+                                        }
                                         var tmpGamesList = new List<string>();
                                         foreach (var game in gamesArray)
                                         {
@@ -516,11 +589,62 @@ public class Server
                                 ser.WriteObject(ns, pkmn);
                                 break;
                             }
-                        case "index_lookup":
+                        case "auto_legality":
+                            {
+                                byte[] size = Read_NS_Data(ns, 8);
+                                string dataSizeStr = Encoding.UTF8.GetString(size, 0, size.Length);
+                                int.TryParse(dataSizeStr, out int dSize);
+                                byte[] version = Read_NS_Data(ns, dSize);
+                                string versionStr = Encoding.UTF8.GetString(version, 0, version.Length);
+                                GameVersion versionInt = 0;
+
+                                var pkmn = GetPokemon(ns);
+                                if (versionStr == "?")
+                                {
+                                    versionInt = GetPlaceholderVersion(pkmn);
+                                }
+                                else
+                                {
+                                    int.TryParse(versionStr, out int vInt);
+                                    versionInt = (GameVersion)vInt;
+                                }
+
+                                var lc = new LegalityAnalysis(pkmn);
+                                var report = lc.Report().Split('\n');
+                                var data = new LegalityReturn
+                                {
+                                    ran = false,
+                                    success = true
+                                };
+                                if (!lc.Valid)
+                                {
+                                    var alm = new AutoLegality(pkmn, versionInt.ToString());
+                                    Console.WriteLine(pkmn.Version);
+                                    var legalPK = alm.Legalize(pkmn, versionInt);
+                                    var qr = System.Convert.ToBase64String(GenQR(legalPK)); 
+                                    if(qr == null || qr.Length == 0)
+                                    {
+                                        throw new ArgumentException("bad pokemon!");
+                                    }
+                                    data.qr = System.Convert.ToBase64String(GenQR(legalPK));
+                                    data.pokemon = System.Convert.ToBase64String(legalPK.DecryptedBoxData);
+                                    data.ran = true;
+                                    data.species = new GPSSSummary(legalPK, GameInfo.Strings).Species;
+                                    data.success = new LegalityAnalysis(legalPK).Valid;
+                                }
+                                if (data.ran && data.success)
+                                {
+                                    data.report = report;
+                                }
+                                var json = JsonConvert.SerializeObject(data);
+                                ns.Write(Encoding.UTF8.GetBytes(json), 0, Encoding.UTF8.GetBytes(json).Length);
+                                break;
+                            }
+             /*           case "index_lookup":
                             {
                                 var queryStr = GetQueryString(ns);
                                 break;
-                            }
+                            }*/
                          default: {
                                     ns.Write(Encoding.UTF8.GetBytes("I don't know how to handle this query type yet!"), 0, Encoding.UTF8.GetBytes("I don't know how to handle this query type yet!").Length);
                                     break;
@@ -529,14 +653,16 @@ public class Server
                     }
                 }
                 ns.Flush();
-                client.Close();
+                ns.Dispose();
+                client.Dispose();
             } catch (Exception ex)
             {
                 Console.WriteLine(ex.ToString());
                 byte[] err = Encoding.Default.GetBytes("Not a Pokemon!");
                 ns.Write(err, 0, err.Length);
                 ns.Flush();
-                client.Close();
+                ns.Dispose();
+                client.Dispose();
             }
         }
     }
